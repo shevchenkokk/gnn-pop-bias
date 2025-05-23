@@ -1,0 +1,23 @@
+model_name: LightGCN
+dataset_name: lastfm
+dataset_path: ./datasets
+
+# Model parameters
+embedding_dim: 64
+LightGCN_n_layers: 3
+decay: 0.0001
+
+# Training parameters
+seed: 42
+use_gpu: false
+learning_rate: 0.001
+batch_size: 1024
+epochs: 5
+eval_freq: 5
+eval_batch_size: 128
+topk: [10, 20, 50]
+num_workers: 4
+
+# Logging and checkpointing
+log_dir: ./logs/LightGCN
+checkpoint_dir: ./checkpoints/LightGCN
