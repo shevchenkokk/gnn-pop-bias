@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from src.models.BasicModel.model import BasicModel
 
 
 class BasicDataset:
@@ -13,14 +14,6 @@ class BasicDataset:
         
     def get_sparse_graph(self):
         """Get the sparse adjacency matrix for GNN propagation"""
-        raise NotImplementedError
-
-
-class BasicModel(nn.Module):    
-    def __init__(self):
-        super(BasicModel, self).__init__()
-    
-    def get_users_rating(self, users):
         raise NotImplementedError
 
 
