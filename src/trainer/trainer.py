@@ -29,7 +29,10 @@ class Trainer:
         """
         self.config = config
         self.setup_seed(config['seed'])
-        self.setup_logging(config['log_dir'])
+        self.run_id = datetime.now().strftime('%Y%m%d_%H%M%S') + f"_{config['model_name']}"
+        self.current_run_log_dir = Path(config['log_dir']) / self.run_id
+        self.current_run_log_dir.mkdir(parents=True, exist_ok=True)
+        self.setup_logging(self.current_run_log_dir)
         self.setup_device(config['use_gpu'])
         
         # Load dataset
@@ -73,7 +76,7 @@ class Trainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         # Setup tensorboard
-        self.tb_logger = TensorboardLogger(config['log_dir'])
+        self.tb_logger = TensorboardLogger(self.current_run_log_dir)
         
     def setup_seed(self, seed):
         """Set random seed for reproducibility"""
