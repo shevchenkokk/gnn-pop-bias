@@ -1,3 +1,20 @@
+import torch
+import torch.nn as nn
+import numpy as np
+
+
+class BasicDataset:
+    """Base class for all datasets"""
+    def __init__(self):
+        self.n_users = 0
+        self.n_items = 0
+        self.train_data = None
+        self.test_data = None
+        
+    def get_sparse_graph(self):
+        """Get the sparse adjacency matrix for GNN propagation"""
+        raise NotImplementedError
+
 
 class BasicModel(nn.Module):    
     def __init__(self):
@@ -20,19 +37,20 @@ class LightGCN(BasicModel):
         self.n_items = self.dataset.n_items
         self.embedding_dim = self.config["embedding_dim"]
         self.n_layers = self.config["LightGCN_n_layers"]
-        self.__init__weight()
-
+        self.decay = self.config.get("decay", 1e-4)
+        self.device = self.config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+        self.__init_weight()
 
     def __init_weight(self):
         """
         Initialize embeddings with normal distribution
         """
         self.user_embs = nn.Embedding(
-            num_embeddings=self.n_users, embedding_dim=self.embedding_dim)
+            num_embeddings=self.n_users, embedding_dim=self.embedding_dim, sparse=True)
         self.item_embs = nn.Embedding(
-            num_embeddings=self.n_items, embedding_dim=self.embedding_dim)
+            num_embeddings=self.n_items, embedding_dim=self.embedding_dim, sparse=True)
 
-        if "pretrain" not in config or not config["pretrain"]:
+        if "pretrain" not in self.config or not self.config["pretrain"]:
             nn.init.normal_(self.user_embs.weight, std=0.1)
             nn.init.normal_(self.item_embs.weight, std=0.1)
             print("--- Use normal distribution initializer ---")
@@ -40,16 +58,15 @@ class LightGCN(BasicModel):
             self.user_embs.weight.data.copy_(torch.from_numpy(self.config["user_embs"]))
             self.item_embs.weight.data.copy_(torch.from_numpy(self.config["item_embs"]))
             print("--- Use pretrained data ---")
-        self.graph = self.dataset.get_sparse_graph()
+        self.graph = self.dataset.get_sparse_graph().to(self.device)
         print("--- LightGCN is ready to go ---")
-
 
     def propagate(self) -> tuple:
         """
         Propagate methods for LightGCN
         """
-        users_emb = self.user_emb.weight
-        items_emb = self.item_emb.weight
+        users_emb = self.user_embs.weight
+        items_emb = self.item_embs.weight
         all_emb = torch.cat([users_emb, items_emb])
         
         layer_embeddings = [all_emb]
@@ -60,7 +77,7 @@ class LightGCN(BasicModel):
 
         out = torch.mean(layer_embeddings, dim=1)
         users, items = torch.split(out, [self.n_users, self.n_items])
-
+        return users, items
     
     def get_users_rating(self, users: torch.tensor) -> torch.tensor:
         """
@@ -72,7 +89,6 @@ class LightGCN(BasicModel):
         rating = torch.matmul(users_emb, items_emb.t())
         return rating
 
-
     def get_embedding(
         self,
         users: torch.tensor,
@@ -80,6 +96,7 @@ class LightGCN(BasicModel):
         neg_items: torch.tensor
     ) -> tuple:
         all_users, all_items = self.propagate()
+
         users_emb = all_users[users]
         pos_emb = all_items[pos_items]
         neg_emb = all_items[neg_items]
@@ -88,9 +105,8 @@ class LightGCN(BasicModel):
         neg_emb_ego = self.item_embs(neg_items)
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
 
-
     def bpr_loss(self, users: torch.tensor, pos: torch.tensor, neg: torch.tensor) -> tuple:
-        (users_emb, pos_emb, neg_emb, 
+        (users_emb, pos_emb, neg_emb,
         userEmb0, posEmb0, negEmb0) = self.get_embedding(users.long(), pos.long(), neg.long())
 
         reg_loss = (1 / 2) * (userEmb0.norm(2).pow(2) +
@@ -103,7 +119,7 @@ class LightGCN(BasicModel):
         neg_scores = torch.sum(neg_scores, dim=1)
 
         loss = - (pos_scores - neg_scores).sigmoid().log().mean()
-
+        return loss, reg_loss * self.decay
 
     def forward(self, users: torch.tensor, items: torch.tensor):
         all_users, all_items = self.propagate()
@@ -112,5 +128,3 @@ class LightGCN(BasicModel):
         items_emb = all_items[items]
         inner_prod = torch.mul(users_emb, items_emb)
         return torch.sum(inner_prod, dim=1).sigmoid()
-
-
