@@ -139,8 +139,9 @@ class Trainer:
             self.optimizer.step()
             
             pbar.set_postfix({
-                'loss': loss.item(),
-                'reg_loss': reg_loss.item()
+                'bpr_loss': loss.item(),
+                'reg_loss': reg_loss.item(),
+                'total_loss': total_loss.item()
             })
             
             total_loss += loss.item()
@@ -148,8 +149,9 @@ class Trainer:
             
             # Log to tensorboard
             step = epoch * len(self.train_loader) + batch_idx
-            self.tb_logger.log_scalar('train/loss', loss.item(), step)
+            self.tb_logger.log_scalar('train/bpr_loss', loss.item(), step)
             self.tb_logger.log_scalar('train/reg_loss', reg_loss.item(), step)
+            self.tb_logger.log_scalar('train/total_loss', total_loss.item(), step)
             
         avg_loss = total_loss / len(self.train_loader)
         avg_reg_loss = total_reg_loss / len(self.train_loader)
