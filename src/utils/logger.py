@@ -51,6 +51,7 @@ class TensorboardLogger:
         """
         log_dir = Path(log_dir)
         log_dir.mkdir(parents=True, exist_ok=True)
+        print(f"--- TensorboardLogger: Initializing SummaryWriter with log_dir: {log_dir.resolve()} ---")
         self.writer = SummaryWriter(log_dir)
         
     def log_scalar(self, tag, value, step):
