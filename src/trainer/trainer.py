@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 # Import project modules
 from src.models.LightGCN.model import LightGCN
+from src.models.SimGCL.model import SimGCL
 from src.utils.data_loader import RecDataset
 from src.utils.logger import setup_logger, TensorboardLogger
 
@@ -44,6 +45,8 @@ class Trainer:
             self.model = LightGCN(self.dataset, config)
         elif self.model_name == 'LightGCN_IPS':
             self.model = LightGCN_IPS(self.dataset, config)
+        elif self.model_name == 'SimGCL':
+            self.model = SimGCL(self.dataset, config)
         elif self.model_name == 'MixGCF':
             from src.models.MixGCF.model import MixGCF
             self.model = MixGCF(self.dataset, config)
@@ -126,8 +129,7 @@ class Trainer:
     def train_epoch(self, epoch):
         """Train model for one epoch"""
         self.model.train()
-        total_loss = 0
-        total_reg_loss = 0
+        epoch_total_loss = 0
         
         pbar = tqdm(self.train_loader, desc=f"Epoch {epoch}")
         for batch_idx, (users, pos_items, neg_items) in enumerate(pbar):
@@ -136,30 +138,27 @@ class Trainer:
             neg_items = neg_items.to(self.device)
             
             self.optimizer.zero_grad()
-            loss, reg_loss = self.model.bpr_loss(users, pos_items, neg_items)
-            total_loss = loss + reg_loss
-            total_loss.backward()
+            
+            loss_components = self.model.compute_loss(users, pos_items, neg_items)
+            loss = loss_components["total_loss"]
+            loss.backward()
             self.optimizer.step()
-            
-            pbar.set_postfix({
-                'bpr_loss': loss.item(),
-                'reg_loss': reg_loss.item(),
-                'total_loss': total_loss.item()
-            })
-            
-            total_loss += loss.item()
-            total_reg_loss += reg_loss.item()
-            
+
+            epoch_total_loss += loss.item()
+
+            log_postfix = {name: val.item() if isinstance(val, torch.Tensor) else val 
+                       for name, val in loss_components.items() if val is not None}
+            pbar.set_postfix(log_postfix)
+
             # Log to tensorboard
             step = epoch * len(self.train_loader) + batch_idx
-            self.tb_logger.log_scalar('train/bpr_loss', loss.item(), step)
-            self.tb_logger.log_scalar('train/reg_loss', reg_loss.item(), step)
-            self.tb_logger.log_scalar('train/total_loss', total_loss.item(), step)
+            for loss_type in ("bpr_loss", "reg_loss", "cl_loss", "total_loss"):
+                if loss_type in loss_components and loss_components[loss_type] is not None:
+                    self.tb_logger.log_scalar(f"train/{loss_type}", loss_components[loss_type].item(), step)
             
-        avg_loss = total_loss / len(self.train_loader)
-        avg_reg_loss = total_reg_loss / len(self.train_loader)
+        avg_loss = epoch_total_loss / len(self.train_loader)
         
-        self.logger.info(f"Epoch {epoch} - Avg Loss: {avg_loss:.4f}, Avg Reg Loss: {avg_reg_loss:.4f}")
+        self.logger.info(f"Epoch {epoch} - Avg Loss: {avg_loss:.4f}")
         return avg_loss
         
     def evaluate(self, epoch):
@@ -187,7 +186,8 @@ class Trainer:
                 batch_metrics = self.model.calculate_metrics(
                     batch_users, 
                     self.dataset.test_data,
-                    k_list=self.topk
+                    k_list=self.topk,
+                    train_items=self.dataset.train_data
                 )
                 
                 # Accumulate metrics
