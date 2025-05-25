@@ -110,7 +110,7 @@ def main():
     parser.add_argument(
         "--root",
         type=str,
-        default=os.path.dirname(__file__),
+        default="datasets/",
         help="Root dir to download"
     )
     
