@@ -39,14 +39,14 @@ class LightGCN(BasicModel):
         Initialize embeddings with normal distribution
         """
         self.user_embs = nn.Embedding(
-            num_embeddings=self.n_users, embedding_dim=self.embedding_dim, sparse=True)
+            num_embeddings=self.n_users, embedding_dim=self.embedding_dim)
         self.item_embs = nn.Embedding(
-            num_embeddings=self.n_items, embedding_dim=self.embedding_dim, sparse=True)
+            num_embeddings=self.n_items, embedding_dim=self.embedding_dim)
 
         if "pretrain" not in self.config or not self.config["pretrain"]:
-            nn.init.normal_(self.user_embs.weight, std=0.1)
-            nn.init.normal_(self.item_embs.weight, std=0.1)
-            print("--- Use normal distribution initializer ---")
+            nn.init.xavier_uniform_(self.user_embs.weight)
+            nn.init.xavier_uniform_(self.item_embs.weight)
+            print("--- Use Xavier Uniform initializer ---")
         else:
             self.user_embs.weight.data.copy_(torch.from_numpy(self.config["user_embs"]))
             self.item_embs.weight.data.copy_(torch.from_numpy(self.config["item_embs"]))
@@ -88,6 +88,18 @@ class LightGCN(BasicModel):
         pos_items: torch.tensor,
         neg_items: torch.tensor
     ) -> tuple:
+        """
+        Get embeddings for users, positive items, and negative items
+        
+        Args:
+            users: User indices tensor
+            pos_items: Positive item indices tensor
+            neg_items: Negative item indices tensor
+            
+        Returns:
+            Tuple of embeddings for users, positive items, negative items,
+            and their initial embeddings before propagation
+        """
         all_users, all_items = self.propagate()
 
         users_emb = all_users[users]
@@ -98,7 +110,18 @@ class LightGCN(BasicModel):
         neg_emb_ego = self.item_embs(neg_items)
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
 
-    def bpr_loss(self, users: torch.tensor, pos: torch.tensor, neg: torch.tensor) -> tuple:
+    def compute_loss(self, users: torch.tensor, pos: torch.tensor, neg: torch.tensor) -> dict:
+        """
+        Compute BPR loss
+        
+        Args:
+            users: User indices tensor
+            pos: Positive item indices tensor
+            neg: Negative item indices tensor
+            
+        Returns:
+            Dict of {total_loss, bpr_loss, reg_loss}
+        """
         (users_emb, pos_emb, neg_emb,
         userEmb0, posEmb0, negEmb0) = self.get_embedding(users.long(), pos.long(), neg.long())
 
@@ -111,13 +134,29 @@ class LightGCN(BasicModel):
         neg_scores = torch.mul(users_emb, neg_emb)
         neg_scores = torch.sum(neg_scores, dim=1)
 
-        loss = - (pos_scores - neg_scores).sigmoid().log().mean()
-        return loss, reg_loss * self.decay
+        bpr_loss = - (pos_scores - neg_scores).sigmoid().log().mean()
+        total_loss = bpr_loss + reg_loss * self.decay
+
+        return {
+            'total_loss': total_loss,
+            'bpr_loss': bpr_loss,
+            'reg_loss': reg_loss
+        }
 
     def forward(self, users: torch.tensor, items: torch.tensor):
+        """
+        Forward pass for prediction
+        
+        Args:
+            users: User indices tensor
+            items: Item indices tensor
+            
+        Returns:
+            Predicted scores (probabilities) for the user-item pairs
+        """
         all_users, all_items = self.propagate()
 
         users_emb = all_users[users]
         items_emb = all_items[items]
         inner_prod = torch.mul(users_emb, items_emb)
-        return torch.sum(inner_prod, dim=1).sigmoid()
+        return torch.sum(inner_prod, dim=1)
