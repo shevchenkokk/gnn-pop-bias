@@ -243,10 +243,10 @@ class SimGCL(BasicModel):
         total_loss = bpr_loss + self.decay * reg_loss + self.cl_rate * cl_loss
 
         return {
-            'total_loss': total_loss,
-            'bpr_loss': bpr_loss,
-            'reg_loss': reg_loss,
-            'cl_loss': cl_loss
+            "total_loss": total_loss,
+            "bpr_loss": bpr_loss,
+            "reg_loss": reg_loss,
+            "cl_loss": cl_loss
         }
     
     def forward(self, users: torch.Tensor, items: torch.Tensor) -> torch.Tensor:
