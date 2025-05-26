@@ -1,20 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
+from src.utils.basic_dataset import BasicDataset
 from src.models.BasicModel.model import BasicModel
-
-
-class BasicDataset:
-    """Base class for all datasets"""
-    def __init__(self):
-        self.n_users = 0
-        self.n_items = 0
-        self.train_data = None
-        self.test_data = None
-        
-    def get_sparse_graph(self):
-        """Get the sparse adjacency matrix for GNN propagation"""
-        raise NotImplementedError
 
 
 class LightGCN(BasicModel):
@@ -138,9 +126,9 @@ class LightGCN(BasicModel):
         total_loss = bpr_loss + reg_loss * self.decay
 
         return {
-            'total_loss': total_loss,
-            'bpr_loss': bpr_loss,
-            'reg_loss': reg_loss
+            "total_loss": total_loss,
+            "bpr_loss": bpr_loss,
+            "reg_loss": reg_loss
         }
 
     def forward(self, users: torch.tensor, items: torch.tensor):
