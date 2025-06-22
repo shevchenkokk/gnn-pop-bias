@@ -1,0 +1,29 @@
+model_name: PopDRL
+dataset_name: kion
+dataset_path: ./datasets
+
+# Model parameters
+embedding_dim: 64
+PopDRL_n_layers: 3
+decay: 0.0001
+tau: 0.2 # Temperature for InfoNCE
+lambda_1: 0.2 # Weight for Weighted Contrastive Learning (L_wcl)
+lambda_2: 0.05 # Weight for Popularity-guided Debiasing (L_db)
+eta: 0.85 # Threshold for negative validation weighting (η)
+K: 5 # Size of association set (TopK popular items)
+delta: 0.1 # Parameter for noise in embedding augmentation
+
+# Training parameters
+seed: 42
+use_gpu: true
+learning_rate: 0.001
+batch_size: 2048
+epochs: 50
+eval_freq: 5
+eval_batch_size: 1024
+topk: [10, 20, 50]
+num_workers: 4
+
+# Logging and checkpointing
+log_dir: ./logs/PopDRL
+checkpoint_dir: ./checkpoints/PopDRL

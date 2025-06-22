@@ -1,11 +1,12 @@
-model_name: LightGCN
+model_name: MixGCF
 dataset_name: kion
 dataset_path: ./datasets
 
-# Model parameters
+# MixGCF specific parameters
+MixGCF_n_layers: 3
 embedding_dim: 64
-LightGCN_n_layers: 3
 decay: 0.0001
+n_negs: 64
 
 # Training parameters
 seed: 42
@@ -19,8 +20,5 @@ topk: [10, 20, 50]
 num_workers: 4
 
 # Logging and checkpointing
-log_dir: ./logs/LightGCN  
-checkpoint_dir: ./checkpoints/LightGCN
-
-# Enable IPS-CN
-ips_cn_enabled: false
+log_dir: ./logs/MixGCF
+checkpoint_dir: ./checkpoints/MixGCF
