@@ -6,6 +6,13 @@ from src.models.BasicModel.model import BasicModel
 
 
 class LightGCN(BasicModel):
+    """
+    LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation
+    
+    Reference: 
+    Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang, and Meng Wang. 2020.
+    LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation
+    """
     def __init__(
         self,
         dataset: BasicDataset,
@@ -20,11 +27,12 @@ class LightGCN(BasicModel):
         self.n_layers = self.config["LightGCN_n_layers"]
         self.decay = self.config.get("decay", 1e-4)
         self.device = self.config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+        self.ips_cn_enabled = self.config.get("ips_cn_enabled", False)
         self.__init_weight()
 
     def __init_weight(self):
         """
-        Initialize embeddings with normal distribution
+        Initialize embeddings with Xavier Uniform distribution
         """
         self.user_embs = nn.Embedding(
             num_embeddings=self.n_users, embedding_dim=self.embedding_dim)
@@ -67,7 +75,7 @@ class LightGCN(BasicModel):
         all_users, all_items = self.propagate()
         users_emb = all_users[users.long()]
         items_emb = all_items
-        rating = torch.matmul(users_emb, items_emb.t())
+        rating = torch.sigmoid(torch.matmul(users_emb, items_emb.t()))
         return rating
 
     def get_embedding(
@@ -122,11 +130,18 @@ class LightGCN(BasicModel):
         neg_scores = torch.mul(users_emb, neg_emb)
         neg_scores = torch.sum(neg_scores, dim=1)
 
-        bpr_loss = - (pos_scores - neg_scores).sigmoid().log().mean()
+        if self.ips_cn_enabled:
+            pos = pos.to(self.dataset.ips_cn_weights.device)
+            ips_cn_weights = self.dataset.ips_cn_weights[pos]
+            ips_cn_weights = ips_cn_weights.to(pos_scores.device)
+            bpr_loss = - (ips_cn_weights * (pos_scores - neg_scores).sigmoid().log()).mean()
+        else:
+            bpr_loss = - (pos_scores - neg_scores).sigmoid().log().mean()
+
         total_loss = bpr_loss + reg_loss * self.decay
 
         return {
-            "total_loss": total_loss,
+            "loss": total_loss,
             "bpr_loss": bpr_loss,
             "reg_loss": reg_loss
         }
